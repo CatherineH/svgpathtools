@@ -1775,6 +1775,16 @@ class Arc(object):
                     intersections.append([my_t, other_t])
             return intersections
 
+        #elif (self.rotation == 0) and isinstance(other_seg, Arc) and (other_seg.rotation == 0):
+            # https://stackoverflow.com/questions/15445546/finding-intersection-points-of-two-ellipses-python
+            # https://www.geometrictools.com/Documentation/IntersectionOfEllipses.pdf
+            # https://math.stackexchange.com/questions/425366/finding-intersection-of-an-ellipse-with-another-ellipse-when-both-are-rotated
+            # https://math.stackexchange.com/questions/197982/calculate-the-intersection-points-of-two-ellipses
+            # https://en.wikipedia.org/wiki/Conic_section#Intersecting_two_conics
+            # https://elliotnoma.wordpress.com/2013/04/10/a-closed-form-solution-for-the-intersections-of-two-ellipses/
+            # http://www.analyzemath.com/EllipseProblems/ellipse_intersection.html
+            # https://arxiv.org/abs/1106.3787
+
         elif is_bezier_segment(other_seg):
             u1poly = self.u1transform(other_seg.poly())
             u1poly_mag2 = real(u1poly)**2 + imag(u1poly)**2
