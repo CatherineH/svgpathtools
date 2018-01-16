@@ -179,18 +179,18 @@ def disvg(paths=None, colors=None,
     _default_path_color = '#000000'  # black
     _default_node_color = '#ff0000'  # red
     _default_font_size = 12
+    if isinstance(filename, str):
+        # append directory to filename (if not included)
+        if os_path.dirname(filename) == '':
+            filename = os_path.join(getcwd(), filename)
 
-    # append directory to filename (if not included)
-    if os_path.dirname(filename) == '':
-        filename = os_path.join(getcwd(), filename)
-
-    # append time stamp to filename
-    if timestamp:
-        fbname, fext = os_path.splitext(filename)
-        dirname = os_path.dirname(filename)
-        tstamp = str(time()).replace('.', '')
-        stfilename = os_path.split(fbname)[1] + '_' + tstamp + fext
-        filename = os_path.join(dirname, stfilename)
+        # append time stamp to filename
+        if timestamp:
+            fbname, fext = os_path.splitext(filename)
+            dirname = os_path.dirname(filename)
+            tstamp = str(time()).replace('.', '')
+            stfilename = os_path.split(fbname)[1] + '_' + tstamp + fext
+            filename = os_path.join(dirname, stfilename)
 
     # check paths and colors are set
     if isinstance(paths, Path) or is_path_segment(paths):
@@ -364,8 +364,9 @@ def disvg(paths=None, colors=None,
             txter.add(txt.TextPath('#'+pathid, s))
 
     # save svg
-    if not os_path.exists(os_path.dirname(filename)):
-        makedirs(os_path.dirname(filename))
+    if isinstance(filename, str):
+        if not os_path.exists(os_path.dirname(filename)):
+            makedirs(os_path.dirname(filename))
     dwg.save()
 
     # re-open the svg, make the xml pretty, and save it again
