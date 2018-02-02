@@ -5,26 +5,9 @@ The main tool being the svg2paths() function."""
 from __future__ import division, absolute_import, print_function
 from xml.dom.minidom import parse
 from os import path as os_path, getcwd
-import re
-from svgpathtools import wsvg, Line, QuadraticBezier, Path
-
-from freetype import Face
 
 # Internal dependencies
 from .parser import parse_path
-
-
-COORD_PAIR_TMPLT = re.compile(
-    r'([\+-]?\d*[\.\d]\d*[eE][\+-]?\d+|[\+-]?\d*[\.\d]\d*)' +
-    r'(?:\s*,\s*|\s+|(?=-))' +
-    r'([\+-]?\d*[\.\d]\d*[eE][\+-]?\d+|[\+-]?\d*[\.\d]\d*)'
-)
-
-def dom2dict(element):
-    """Converts DOM elements to dictionaries of attributes."""
-    keys = list(element.attributes.keys())
-    values = [val.value for val in list(element.attributes.values())]
-    return dict(list(zip(keys, values)))
 
 
 def ellipse2pathd(ellipse):
@@ -54,39 +37,52 @@ def ellipse2pathd(ellipse):
     return d
 
 
-def polyline2pathd(polyline_d, is_polygon=False):
+def polyline2pathd(polyline_d):
     """converts the string from a polyline points-attribute to a string for a
     Path object d-attribute"""
-    points = COORD_PAIR_TMPLT.findall(polyline_d)
-    closed = (float(points[0][0]) == float(points[-1][0]) and
-              float(points[0][1]) == float(points[-1][1]))
+    points = polyline_d.replace(', ', ',')
+    points = points.replace(' ,', ',')
+    points = points.split()
 
-    # The `parse_path` call ignores redundant 'z' (closure) commands
-    # e.g. `parse_path('M0 0L100 100Z') == parse_path('M0 0L100 100L0 0Z')`
-    # This check ensures that an n-point polygon is converted to an n-Line path.
-    if is_polygon and closed:
-        points.append(points[0])
+    closed = points[0] == points[-1]
 
-    d = 'M' + 'L'.join('{0} {1}'.format(x,y) for x,y in points)
-    if is_polygon or closed:
+    d = 'M' + points.pop(0).replace(',', ' ')
+    for p in points:
+        d += 'L' + p.replace(',', ' ')
+    if closed:
         d += 'z'
     return d
 
 
 def polygon2pathd(polyline_d):
-    """converts the string from a polygon points-attribute to a string 
-    for a Path object d-attribute.
+    """converts the string from a polygon points-attribute to a string for a
+    Path object d-attribute.
     Note:  For a polygon made from n points, the resulting path will be
-    composed of n lines (even if some of these lines have length zero).
-    """
-    return polyline2pathd(polyline_d, True)
+    composed of n lines (even if some of these lines have length zero)."""
+    points = polyline_d.replace(', ', ',')
+    points = points.replace(' ,', ',')
+    points = points.split()
+
+    reduntantly_closed = points[0] == points[-1]
+
+    d = 'M' + points[0].replace(',', ' ')
+    for p in points[1:]:
+        d += 'L' + p.replace(',', ' ')
+
+    # The `parse_path` call ignores redundant 'z' (closure) commands
+    # e.g. `parse_path('M0 0L100 100Z') == parse_path('M0 0L100 100L0 0Z')`
+    # This check ensures that an n-point polygon is converted to an n-Line path.
+    if reduntantly_closed:
+        d += 'L' + points[0].replace(',', ' ')
+
+    return d + 'z'
 
 
 def rect2pathd(rect):
     """Converts an SVG-rect element to a Path d-string.
     
-    The rectangle will start at the (x,y) coordinate specified by the 
-    rectangle object and proceed counter-clockwise."""
+    The rectangle will start at the (x,y) coordinate specified by the rectangle 
+    object and proceed counter-clockwise."""
     x0, y0 = float(rect.get('x', 0)), float(rect.get('y', 0))
     w, h = float(rect["width"]), float(rect["height"])
     x1, y1 = x0 + w, y0
@@ -96,110 +92,6 @@ def rect2pathd(rect):
     d = ("M{} {} L {} {} L {} {} L {} {} z"
          "".format(x0, y0, x1, y1, x2, y2, x3, y3))
     return d
-
-
-def text2pathd(text):
-    attributes = dom2dict(text)
-    if "font-size" in attributes:
-        font_size = float(attributes["font-size"])
-    elif "style" in attributes:
-        if attributes["style"].find("font-size") >= 0:
-            font_size = attributes["style"].split("font-size:")[1].split(";")[0]
-            font_size = float(font_size.replace("px", ""))
-        else:
-            font_size = 12
-    else:
-        font_size = 12
-    if "x" in attributes:
-        x_global_offset = float(attributes["x"])
-    else:
-        x_global_offset = 0
-    if "y" in attributes:
-        y_global_offset = float(attributes["y"])
-    else:
-        y_global_offset = 0
-
-    text_string = text.childNodes[0].data
-
-    def tuple_to_imag(t):
-        return t[0] + t[1] * 1j
-    # keep fonts with repository, as dealing with importing fonts across platforms is a
-    # nightmare
-    foldername = os_path.dirname(os_path.abspath(__file__))
-    face = Face(os_path.join(foldername, 'Vera.ttf'))
-
-    face.set_char_size(48 * 64)
-    scale = font_size/face.size.height
-    outlines = []
-    current_x = 0
-    for i, letter in enumerate(text_string):
-        face.load_char(letter)
-        outline = face.glyph.outline
-        if i != 0:
-            kerning = face.get_kerning(text_string[i-1], text_string[i])
-            kerning_x = kerning.x
-            kerning_y = kerning.y
-        else:
-            kerning_x = 0
-            kerning_y = 0
-
-        if text_string[i] == ' ':
-            # a space is usually 30% of the widest character, capital W
-            char_width = face.size.max_advance*0.3
-            char_height = 0
-            char_offset = 0
-        else:
-            char_width = outline.get_bbox().xMax
-            char_offset = face.size.height-outline.get_bbox().yMax
-            char_height = outline.get_bbox().yMax
-
-        outline_dict = {}
-        current_x += kerning_x
-        outline_dict["points"] = [(scale*(p[0]+current_x)+x_global_offset,
-                                   scale*(char_offset+char_height-p[1])+y_global_offset)
-                                  for p in outline.points]
-        outline_dict["contours"] = outline.contours
-        outline_dict["tags"] = outline.tags
-        outlines.append(outline_dict)
-        current_x += char_width
-
-    paths = []
-    for outline in outlines:
-        start, end = 0, 0
-        for i in range(len(outline["contours"])):
-            end = outline["contours"][i]
-            points = outline["points"][start:end + 1]
-            points.append(points[0])
-            tags = outline["tags"][start:end + 1]
-            tags.append(tags[0])
-
-            segments = [[points[0], ], ]
-            for j in range(1, len(points)):
-                segments[-1].append(points[j])
-                if tags[j] and j < (len(points) - 1):
-                    segments.append([points[j], ])
-            for segment in segments:
-                if len(segment) == 2:
-                    paths.append(Line(start=tuple_to_imag(segment[0]),
-                                      end=tuple_to_imag(segment[1])))
-                elif len(segment) == 3:
-                    paths.append(QuadraticBezier(start=tuple_to_imag(segment[0]),
-                                                 control=tuple_to_imag(segment[1]),
-                                                 end=tuple_to_imag(segment[2])))
-                elif len(segment) == 4:
-                    C = ((segment[1][0] + segment[2][0]) / 2.0,
-                         (segment[1][1] + segment[2][1]) / 2.0)
-
-                    paths.append(QuadraticBezier(start=tuple_to_imag(segment[0]),
-                                                 control=tuple_to_imag(segment[1]),
-                                                 end=tuple_to_imag(C)))
-                    paths.append(QuadraticBezier(start=tuple_to_imag(C),
-                                                 control=tuple_to_imag(segment[2]),
-                                                 end=tuple_to_imag(segment[3])))
-            start = end + 1
-
-    path = Path(*paths)
-    return path.d()
 
 
 def svg2paths(svg_file_location,
@@ -296,6 +188,12 @@ def svgdoc2paths(doc,
         dict (optional): A dictionary of svg-attributes (see `svg2paths2()`).
     """
 
+    def dom2dict(element):
+        """Converts DOM elements to dictionaries of attributes."""
+        keys = list(element.attributes.keys())
+        values = [val.value for val in list(element.attributes.values())]
+        return dict(list(zip(keys, values)))
+
     # Use minidom to extract path strings from input SVG
     paths = [dom2dict(el) for el in doc.getElementsByTagName('path')]
     d_strings = [el['d'] for el in paths]
@@ -337,9 +235,8 @@ def svgdoc2paths(doc,
         attribute_dictionary_list += rectangles
 
     if convert_text_to_paths:
-        texts = [el for el in doc.getElementsByTagName('text')]
-        d_strings += [text2pathd(text) for text in texts]
-        attribute_dictionary_list += [dom2dict(el) for el in texts]
+        text = [el for el in doc.getElementsByTagName('text')]
+        print("got text: ", text[0].childNodes)
 
     if return_svg_attributes:
         svg_attributes = dom2dict(doc.getElementsByTagName('svg')[0])

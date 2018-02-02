@@ -1,5 +1,7 @@
 *.pyc
 .*
+/examples/*.png
+/examples/*.svg
 /svgpathtools/nonunittests
 !.travis.yml
 !/.gitignore
