@@ -120,6 +120,8 @@ def text2pathd(text):
         y_global_offset = 0
 
     text_string = text.childNodes[0].data
+    # strip newline characters from the string, they aren't rendered in svg
+    text_string = text_string.replace("\n", "").replace("\r", "")
 
     def tuple_to_imag(t):
         return t[0] + t[1] * 1j
