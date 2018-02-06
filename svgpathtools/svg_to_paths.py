@@ -118,8 +118,12 @@ def text2pathd(text):
         y_global_offset = float(attributes["y"])
     else:
         y_global_offset = 0
-
-    text_string = text.childNodes[0].data
+    if hasattr(text.childNodes[0], "data"):
+        text_string = text.childNodes[0].data
+    else:
+        flow_para = text.getElementsByTagName('flowPara')
+        if flow_para:
+            text_string = flow_para[0].childNodes[0].data
     # strip newline characters from the string, they aren't rendered in svg
     text_string = text_string.replace("\n", "").replace("\r", "")
 
@@ -339,7 +343,8 @@ def svgdoc2paths(doc,
         attribute_dictionary_list += rectangles
 
     if convert_text_to_paths:
-        texts = [el for el in doc.getElementsByTagName('text')]
+        texts = [el for el in doc.getElementsByTagName('text')]+\
+                [el for el in doc.getElementsByTagName('flowRoot')]
         d_strings += [text2pathd(text) for text in texts]
         attribute_dictionary_list += [dom2dict(el) for el in texts]
 
