@@ -2182,6 +2182,8 @@ class Path(MutableSequence):
                 parts.append('M {},{}'.format(seg_start.real, seg_start.imag))
 
             if isinstance(segment, Line):
+                if not hasattr(segment.end, "real"):
+                    print("segment end is funky", segment.end)
                 args = segment.end.real, segment.end.imag
                 parts.append('L {},{}'.format(*args))
             elif isinstance(segment, CubicBezier):
