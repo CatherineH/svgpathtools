@@ -39,6 +39,10 @@ def get_transform(input_dict):
             output = input_dict["transform"].replace("matrix(", "").replace(")", ""). \
                 replace(",", " ").split(" ")
             return [float(x) for x in output]
+        elif input_dict["transform"].find("scale(") == 0:
+            output = input_dict["transform"].replace("scale(", "").replace(")", ""). \
+                replace(",", " ").split(" ")
+            return float(output[0]), 0, 0, float(output[1]), 0, 0
         else:
             return 1, 0, 0, 1, 0, 0
     else:
