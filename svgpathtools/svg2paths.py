@@ -6,7 +6,7 @@ from __future__ import division, absolute_import, print_function
 from xml.dom.minidom import parse
 from os import path as os_path, getcwd
 
-from numpy import matmul
+from numpy import matmul, cos, sin, tan
 from svgpathtools import wsvg, Line, QuadraticBezier, Path
 
 try:
@@ -43,6 +43,25 @@ def get_transform(input_dict):
             output = input_dict["transform"].replace("scale(", "").replace(")", ""). \
                 replace(",", " ").split(" ")
             return float(output[0]), 0, 0, float(output[1]), 0, 0
+        elif input_dict["transform"].find("rotate(") == 0:
+            output = input_dict["transform"].replace("rotate(", "").replace(")", ""). \
+                replace(",", " ").split(" ")
+            output = [float(x) for x in output]
+            rotate = [[cos(output[0]), -sin(output[0]), 0],
+                      [sin(output[0]), cos(output[0]), 1], [0, 0, 1]]
+            if len(output) == 1:
+                return rotate[0][0], rotate[1][0], rotate[0][1], rotate[1][1], rotate[0][2], rotate[1][2]
+            trans1 = [[1, 0, output[1]], [0, 1, output[2]], [0, 0, 1]]
+            trans2 = [[1, 0, -output[1]], [0, 1, -output[2]], [0, 0, 1]]
+            out = matmul(rotate, trans2)
+            out = matmul(trans1, out)
+            return out[0][0], out[1][0], out[0][1], out[1][1], out[0][2], out[1][2]
+        elif input_dict["transform"].find("skewX(") == 0:
+            out = float(input_dict["transform"].replace("skewX(", "").replace(")", ""))
+            return 1, 0, tan(out), 1, 0, 0
+        elif input_dict["transform"].find("skewY(") == 0:
+            out = float(input_dict["transform"].replace("skewY(", "").replace(")", ""))
+            return 1, tan(out), 0, 1, 0, 0
         else:
             return 1, 0, 0, 1, 0, 0
     else:
