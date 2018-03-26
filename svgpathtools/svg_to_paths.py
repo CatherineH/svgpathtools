@@ -36,7 +36,7 @@ def combine_transforms(t1, t2):
 def get_transform(input_dict):
     """ Get the x/y transforms """
     if "transform" in input_dict:
-        if input_dict["transform"].find("translate") > 0:
+        if input_dict["transform"].find("translate") == 0:
             numbers = input_dict["transform"].split("translate(")[1].split(")")[0].split(
                 ",")
             if len(numbers) != 2:
