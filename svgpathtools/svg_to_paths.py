@@ -90,6 +90,8 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float"):
 
 def dom2dict(element):
     """Converts DOM elements to dictionaries of attributes."""
+    if element.attributes is None: # sometimes groups don't have any attributes
+        return {}
     keys = list(element.attributes.keys())
     values = [val.value for val in list(element.attributes.values())]
     return dict(list(zip(keys, values)))
