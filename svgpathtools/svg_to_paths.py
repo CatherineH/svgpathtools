@@ -78,12 +78,19 @@ def get_transform(input_dict):
 def transform_path(transform, path):
     # apply transform to each point in paths
     path_parts = path.split(" ")
-    return " ".join([transform_point(p, transform, "str")
-                     if path_parts[i-1].lower() == 'm' else p
+    # grab the last transformation instruction character
+    def last_char(i):
+        j = i
+        while j >= 0:
+            if path_parts[j].lower() in ["m", "c", "l", "h", "v", "z"]:
+                return path_parts[j]
+            j -= 1
+    # go through list, transform the points, and then rejoin the string
+    return " ".join([transform_point(p, transform, "str", last_char(i).islower() and i > 1)
                      for i, p in enumerate(path_parts)])
 
 
-def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float"):
+def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=False):
     a, b, c, d, e, f = matrix
     if isinstance(point, list):
         x,y = point
@@ -94,7 +101,11 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float"):
         else:
             # probably got a letter describing the point, i.e., m or z
             return point
-    x, y = a * x + c * y + e, b * x + d * y + f
+    # if the transform is relative, don't apply the translation
+    if relative:
+        x, y = a * x + c * y, b * x + d * y
+    else:
+        x, y = a * x + c * y + e, b * x + d * y + f
     if format == "float":
         return x, y
     else:
