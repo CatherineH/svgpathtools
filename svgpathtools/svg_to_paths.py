@@ -75,17 +75,30 @@ def get_transform(input_dict):
         return 1, 0, 0, 1, 0, 0
 
 
+def transform_path(transform, path):
+    # apply transform to each point in paths
+    path_parts = path.split(" ")
+    return " ".join([transform_point(p, transform, "str")
+                     if path_parts[i-1].lower() == 'm' else p
+                     for i, p in enumerate(path_parts)])
+
+
 def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float"):
     a, b, c, d, e, f = matrix
     if isinstance(point, list):
         x,y = point
     else:
-        x, y = [float(x) for x in point.split(',')]
+        point_parts = point.split(',')
+        if len(point_parts) >= 2:
+            x, y = [float(x) for x in point_parts]
+        else:
+            # probably got a letter describing the point, i.e., m or z
+            return point
     x, y = a * x + c * y + e, b * x + d * y + f
     if format == "float":
         return x, y
     else:
-        return "%s %s" % x, y
+        return "%s,%s" % (x, y)
 
 
 def dom2dict(element):
@@ -406,55 +419,50 @@ def svgdoc2paths(doc,
         for i in range(len(group_output)):
             output[i] = output[i] + group_output[i]
 
-    # Use minidom to extract path strings from input SVG
-    paths = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'path']
-    d_strings = [el['d'] for el in paths]
-    attribute_dictionary_list = paths
-
-    # Use minidom to extract polyline strings from input SVG, convert to
-    # path strings, add to list
-    if convert_polylines_to_paths:
-        plins = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'polyline']
-        d_strings += [polyline2pathd(pl, transform) for pl in plins]
-        attribute_dictionary_list += plins
-
-    # Use minidom to extract polygon strings from input SVG, convert to
-    # path strings, add to list
-    if convert_polygons_to_paths:
-        pgons = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'polygon']
-        d_strings += [polygon2pathd(pg['points'], transform) for pg in pgons]
-        attribute_dictionary_list += pgons
-
-    if convert_lines_to_paths:
-        def tlp(l, part):
-            # transform line part
-            return str(float(l[part]) + transform[part[0] == 'y'])
-
-        lines = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'line']
-        d_strings += [('M' + tlp(l, 'x1') + ' ' + tlp(l, 'y1') +
-                       'L' + tlp(l, 'x2') + ' ' + tlp(l, 'y2')) for l in lines]
-        attribute_dictionary_list += lines
-
-    if convert_ellipses_to_paths:
-        ellipses = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'ellipse']
-        d_strings += [ellipse2pathd(e, transform) for e in ellipses]
-        attribute_dictionary_list += ellipses
-
-    if convert_circles_to_paths:
-        circles = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'circle']
-        d_strings += [ellipse2pathd(c, transform) for c in circles]
-        attribute_dictionary_list += circles
-
-    if convert_rectangles_to_paths:
-        rectangles = [dom2dict(el) for el in doc.childNodes if el.nodeName == 'rect']
-        d_strings += [rect2pathd(r, transform) for r in rectangles]
-        attribute_dictionary_list += rectangles
-
-    if convert_text_to_paths and Face is not None:
-        texts = [el for el in doc.childNodes if el.nodeName == 'text'] + \
-                [el for el in doc.childNodes if el.nodeName == 'flowRoot']
-        d_strings += [text2pathd(text) for text in texts]
-        attribute_dictionary_list += [dom2dict(el) for el in texts]
+    # TODO: make this preserve the order of the shapes
+    d_strings = []
+    attribute_dictionary_list = []
+    for el in doc.childNodes:
+        # Use minidom to extract path strings from input SVG
+        if el.nodeName == 'path':
+            domdict = dom2dict(el)
+            d_strings += [transform_path(transform, domdict['d'])]
+            attribute_dictionary_list += [domdict]
+        # Use minidom to extract polyline strings from input SVG, convert to
+        # path strings, add to list
+        elif el.nodeName == 'polyline' and convert_polylines_to_paths:
+            plin = dom2dict(el)
+            d_strings += [polyline2pathd(plin, transform)]
+            attribute_dictionary_list += [plin]
+        # Use minidom to extract polygon strings from input SVG, convert to
+        # path strings, add to list
+        elif el.nodeName == 'polygon' and convert_polygons_to_paths:
+            pgon = dom2dict(el)
+            d_strings += [polygon2pathd(pgon['points'], transform)]
+            attribute_dictionary_list += [pgon]
+        elif el.nodeName == 'line' and convert_lines_to_paths:
+            def tlp(l, part):
+                # transform line part
+                return str(float(l[part]) + transform[part[0] == 'y'])
+            line = dom2dict(el)
+            d_strings += [('M' + tlp(line, 'x1') + ' ' + tlp(line, 'y1') +
+                           'L' + tlp(line, 'x2') + ' ' + tlp(line, 'y2'))]
+            attribute_dictionary_list += [line]
+        elif el.nodeName == 'ellipse' and convert_ellipses_to_paths:
+            ellipse = dom2dict(el)
+            d_strings += [ellipse2pathd(ellipse, transform)]
+            attribute_dictionary_list += [ellipse]
+        elif el.nodeName == 'circle' and convert_circles_to_paths:
+            circle = dom2dict(el)
+            d_strings += [ellipse2pathd(circle, transform)]
+            attribute_dictionary_list += [circle]
+        elif el.nodeName == 'rect' and convert_rectangles_to_paths:
+            rectangle = dom2dict(el)
+            d_strings += [rect2pathd(rectangle, transform)]
+            attribute_dictionary_list += [rectangle]
+        elif el.nodeName in ['text', 'flowRoot'] and Face is not None:
+            d_strings += [text2pathd(el)]
+            attribute_dictionary_list += [dom2dict(el)]
 
     if return_svg_attributes:
         svg_attributes = dom2dict(doc.getElementsByTagName('svg')[0])
