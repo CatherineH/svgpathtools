@@ -15,5 +15,6 @@ from .smoothing import smoothed_path, smoothed_joint, is_differentiable, kinks
 
 try:
     from .svg2paths import svg2paths, svgdoc2paths, svg2paths2
-except ImportError as e:
+except ImportError as e: 
     print("got import error %s" % e)
+    pass
