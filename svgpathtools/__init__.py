@@ -17,4 +17,3 @@ try:
     from .svg2paths import svg2paths, svgdoc2paths, svg2paths2
 except ImportError as e: 
     print("got import error %s" % e)
-    pass
