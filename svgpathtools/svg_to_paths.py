@@ -3,6 +3,8 @@ The main tool being the svg2paths() function."""
 
 # External dependencies
 from __future__ import division, absolute_import, print_function
+
+from re import findall
 from xml.dom.minidom import parse
 from os import path as os_path, getcwd
 import re
@@ -57,7 +59,8 @@ def get_transform(input_dict):
             rotate = [[cos(output[0]), -sin(output[0]), 0],
                       [sin(output[0]), cos(output[0]), 1], [0, 0, 1]]
             if len(output) == 1:
-                return rotate[0][0], rotate[1][0], rotate[0][1], rotate[1][1], rotate[0][2], rotate[1][2]
+                return rotate[0][0], rotate[1][0], rotate[0][1], rotate[1][1], rotate[0][
+                    2], rotate[1][2]
             trans1 = [[1, 0, output[1]], [0, 1, output[2]], [0, 0, 1]]
             trans2 = [[1, 0, -output[1]], [0, 1, -output[2]], [0, 0, 1]]
             out = matmul(rotate, trans2)
@@ -76,24 +79,36 @@ def get_transform(input_dict):
 
 
 def transform_path(transform, path):
-    # apply transform to each point in paths
-    path_parts = path.split(" ")
-    # grab the last transformation instruction character
-    def last_char(i):
-        j = i
-        while j >= 0:
-            if path_parts[j].lower() in ["m", "c", "l", "h", "v", "z"]:
-                return path_parts[j]
-            j -= 1
+    path_parts = findall(r"[\w][\s\d\.\,\-]+", path)
+    for i, part in enumerate(path_parts):
+        numbers = findall(r"[\-\d\.]+", part)
+        # arcs are handled differently because not all parameters are coordinates
+        if part[0].lower() == 'a':
+            # A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            path_parts[i] = part[0] + " " + \
+                            transform_point("%s,%s" % (numbers[0], numbers[1]),
+                                            transform, format='str',
+                                            relative=True) + " " + \
+                            " ".join(numbers[2:5]) + " " + \
+                            transform_point("%s,%s" % (numbers[5], numbers[6]),
+                                            transform, format='str',
+                                            relative=part[0] == 'a')
+        else:
+            paired = ["%s,%s" % (numbers[i], numbers[i + 1]) for i in
+                      range(0, len(numbers), 2)]
+            path_parts[i] = part[0] + " " + \
+                            " ".join([transform_point(p, transform, format='str',
+                                                      relative=part[0].islower()) for p in
+                                      paired])
+
     # go through list, transform the points, and then rejoin the string
-    return " ".join([transform_point(p, transform, "str", last_char(i).islower() and i > 1)
-                     for i, p in enumerate(path_parts)])
+    return " ".join(path_parts)
 
 
 def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=False):
     a, b, c, d, e, f = matrix
     if isinstance(point, list):
-        x,y = point
+        x, y = point
     else:
         point_parts = point.split(',')
         if len(point_parts) >= 2:
@@ -114,14 +129,14 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=F
 
 def dom2dict(element):
     """Converts DOM elements to dictionaries of attributes."""
-    if element.attributes is None: # sometimes groups don't have any attributes
+    if element.attributes is None:  # sometimes groups don't have any attributes
         return {}
     keys = list(element.attributes.keys())
     values = [val.value for val in list(element.attributes.values())]
     return dict(list(zip(keys, values)))
 
 
-def ellipse2pathd(ellipse, group_transform = (1, 0, 0, 1, 0, 0)):
+def ellipse2pathd(ellipse, group_transform=(1, 0, 0, 1, 0, 0)):
     """converts the parameters from an ellipse or a circle to a string for a 
     Path object d-attribute"""
     cx = float(ellipse.get('cx', None))
@@ -248,7 +263,8 @@ def text2pathd(text, group_transform=(1, 0, 0, 1, 0, 0)):
     current_x = 0
     transform = get_transform(text)
     transform = combine_transforms(group_transform, transform)
-    x_global_offset, y_global_offset = transform_point([x_global_offset, y_global_offset], transform)
+    x_global_offset, y_global_offset = transform_point([x_global_offset, y_global_offset],
+                                                       transform)
     for i, letter in enumerate(text_string):
         face.load_char(letter)
         outline = face.glyph.outline
@@ -272,7 +288,8 @@ def text2pathd(text, group_transform=(1, 0, 0, 1, 0, 0)):
         current_x += kerning_x
         outline_dict["points"] = [(scale * (p[0] + current_x) + x_global_offset,
                                    scale * (
-                                   char_offset + char_height - p[1]) + y_global_offset)
+                                       char_offset + char_height - p[
+                                           1]) + y_global_offset)
                                   for p in outline.points]
         outline_dict["contours"] = outline.contours
         outline_dict["tags"] = outline.tags
@@ -362,13 +379,13 @@ def svg2paths(svg_file_location,
 
     doc = parse(svg_file_location)
 
-    svgdoc2paths(doc, return_svg_attributes=return_svg_attributes,
-                 convert_circles_to_paths=convert_circles_to_paths,
-                 convert_ellipses_to_paths=convert_ellipses_to_paths,
-                 convert_lines_to_paths=convert_lines_to_paths,
-                 convert_polylines_to_paths=convert_polylines_to_paths,
-                 convert_polygons_to_paths=convert_polygons_to_paths,
-                 convert_rectangles_to_paths=convert_rectangles_to_paths)
+    return svgdoc2paths(doc, return_svg_attributes=return_svg_attributes,
+                        convert_circles_to_paths=convert_circles_to_paths,
+                        convert_ellipses_to_paths=convert_ellipses_to_paths,
+                        convert_lines_to_paths=convert_lines_to_paths,
+                        convert_polylines_to_paths=convert_polylines_to_paths,
+                        convert_polygons_to_paths=convert_polygons_to_paths,
+                        convert_rectangles_to_paths=convert_rectangles_to_paths)
 
 
 def svgdoc2paths(doc,
@@ -411,7 +428,6 @@ def svgdoc2paths(doc,
         list: The list of corresponding path attribute dictionaries.
         dict (optional): A dictionary of svg-attributes (see `svg2paths2()`).
     """
-
     # first check for group transforms
     groups = [node for node in doc.childNodes if
               node.nodeName == 'g' or node.nodeName == 'svg']
@@ -437,7 +453,9 @@ def svgdoc2paths(doc,
         # Use minidom to extract path strings from input SVG
         if el.nodeName == 'path':
             domdict = dom2dict(el)
-            d_strings += [transform_path(transform, domdict['d'])]
+            path_transform = get_transform(domdict)
+            d_strings += [transform_path(combine_transforms(transform, path_transform),
+                                         domdict['d'])]
             attribute_dictionary_list += [domdict]
         # Use minidom to extract polyline strings from input SVG, convert to
         # path strings, add to list
@@ -455,6 +473,7 @@ def svgdoc2paths(doc,
             def tlp(l, part):
                 # transform line part
                 return str(float(l[part]) + transform[part[0] == 'y'])
+
             line = dom2dict(el)
             d_strings += [('M' + tlp(line, 'x1') + ' ' + tlp(line, 'y1') +
                            'L' + tlp(line, 'x2') + ' ' + tlp(line, 'y2'))]
