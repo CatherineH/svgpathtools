@@ -2152,7 +2152,7 @@ class Path(MutableSequence):
         self._end = pt
         self._segments[-1].end = pt
 
-    def d(self, useSandT=False, use_closed_attrib=False):
+    def d(self, useSandT=False, use_closed_attrib=False, relative=False):
         """Returns a path d-string for the path object.
         For an explanation of useSandT and use_closed_attrib, see the
         compatibility notes in the README."""
@@ -2171,6 +2171,7 @@ class Path(MutableSequence):
         parts = []
         previous_segment = None
         end = self[-1].end
+        start = self.start
 
         for segment in segments:
             seg_start = segment.start
