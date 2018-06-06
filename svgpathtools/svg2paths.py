@@ -87,7 +87,7 @@ def transform_path(transform, path):
                                             transform, format='str',
                                             relative=part[0] == 'a')
         else:
-            paired = ["%s,%s" % (numbers[i], numbers[i + 1]) for i in
+            paired = ["%s,%s" % (numbers[j], numbers[j + 1]) for j in
                       range(0, len(numbers), 2)]
             path_parts[i] = part[0] + " " + \
                             " ".join([transform_point(p, transform, format='str',
