@@ -89,10 +89,11 @@ def transform_path(transform, path):
         else:
             paired = ["%s,%s" % (numbers[j], numbers[j + 1]) for j in
                       range(0, len(numbers), 2)]
+            relative = part[0].islower() and part[0] != "m"
             path_parts[i] = part[0] + " " + \
                             " ".join([transform_point(p, transform, format='str',
-                                                      relative=part[0].islower()) for p in
-                                      paired])
+                                                      relative=relative)
+                                      for p in paired])
 
     # go through list, transform the points, and then rejoin the string
     return " ".join(path_parts)
@@ -451,6 +452,7 @@ def svgdoc2paths(doc,
                                     convert_polygons_to_paths=convert_polygons_to_paths,
                                     convert_rectangles_to_paths=convert_rectangles_to_paths,
                                     transform=group_transform)
+
         for i in range(len(group_output)):
             output[i] = output[i] + group_output[i]
 
@@ -462,6 +464,7 @@ def svgdoc2paths(doc,
         if el.nodeName == 'path':
             domdict = dom2dict(el)
             path_transform = get_transform(domdict)
+
             d_strings += [transform_path(combine_transforms(transform, path_transform),
                                          domdict['d'])]
             attribute_dictionary_list += [domdict]
@@ -475,7 +478,7 @@ def svgdoc2paths(doc,
         # path strings, add to list
         elif el.nodeName == 'polygon' and convert_polygons_to_paths:
             pgon = dom2dict(el)
-            d_strings += [polygon2pathd(pgon['points'], transform)]
+            d_strings += [polygon2pathd(pgon, transform)]
             attribute_dictionary_list += [pgon]
         elif el.nodeName == 'line' and convert_lines_to_paths:
             def tlp(l, part):
