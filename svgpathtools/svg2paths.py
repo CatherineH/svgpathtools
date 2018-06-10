@@ -72,29 +72,43 @@ def get_transform(input_dict):
 
 
 def transform_path(transform, path):
-    path_parts = findall(r"[\w][\s\d\.\,\-]+", path)
+    path_parts = findall(r"([\w][\s\d\.\,\-]+|[zZ])", path)
     for i, part in enumerate(path_parts):
         numbers = findall(r"[\-\d\.]+", part)
         # arcs are handled differently because not all parameters are coordinates
         if part[0].lower() == 'a':
             # A rx ry x-axis-rotation large-arc-flag sweep-flag x y
-            path_parts[i] = part[0] + " " + \
-                            transform_point("%s,%s" % (numbers[0], numbers[1]),
-                                            transform, format='str',
-                                            relative=True) + " " + \
-                            " ".join(numbers[2:5]) + " " + \
-                            transform_point("%s,%s" % (numbers[5], numbers[6]),
-                                            transform, format='str',
-                                            relative=part[0] == 'a')
+            # there can be multiple arcs in a path
+            path_parts[i] = ""
+            for offset in range(0, int(len(numbers)/7)):
+                if offset == 0:
+                    path_parts[i] += part[0]
+
+                path_parts[i] += " " + transform_point("%s,%s" % (numbers[0+offset*7], numbers[1+offset*7]),
+                                                transform, format='str',
+                                                relative=True) + " " + \
+                                " ".join(numbers[2+offset*7:5+offset*7]) + " " + \
+                                transform_point("%s,%s" % (numbers[5+offset*7], numbers[6+offset*7]),
+                                                transform, format='str',
+                                                relative=part[0] == 'a')
         else:
             paired = ["%s,%s" % (numbers[j], numbers[j + 1]) for j in
                       range(0, len(numbers), 2)]
-            relative = part[0].islower() and part[0] != "m"
-            path_parts[i] = part[0] + " " + \
+            # the relative move has to be handled differently
+            if part[0] == "m":
+                path_parts[i] = part[0] + " " + \
+                                " ".join([transform_point(p, transform, format='str',
+                                                          relative=j != 0)
+                                          for j, p in enumerate(paired)])
+            elif part[0].lower() == "z":
+                print(part[0])
+                path_parts[i] = part[0]
+            else:
+                relative = part[0].islower()
+                path_parts[i] = part[0] + " " + \
                             " ".join([transform_point(p, transform, format='str',
                                                       relative=relative)
                                       for p in paired])
-
     # go through list, transform the points, and then rejoin the string
     return " ".join(path_parts)
 
