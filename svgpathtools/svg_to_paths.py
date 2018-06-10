@@ -100,7 +100,7 @@ def transform_path(transform, path):
                                                 relative=part[0] == 'a')
         else:
             paired = ["%s,%s" % (numbers[j], numbers[j + 1]) for j in
-                      range(0, len(numbers), 2)]
+                      range(0, len(numbers)-1, 2)]
             # the relative move has to be handled differently
             if part[0] == "m":
                 path_parts[i] = part[0] + " " + \
@@ -108,7 +108,6 @@ def transform_path(transform, path):
                                                           relative=j != 0)
                                           for j, p in enumerate(paired)])
             elif part[0].lower() == "z":
-                print(part[0])
                 path_parts[i] = part[0]
             else:
                 relative = part[0].islower()
@@ -168,7 +167,7 @@ def ellipse2pathd(ellipse, group_transform=(1, 0, 0, 1, 0, 0)):
     cx = float(cx)
     cy = float(cy)
     transform = get_transform(ellipse)
-    transform = combine_transforms(group_transform, transform)
+    transform = combine_transforms(transform, group_transform)
     cx, cy = transform_point([cx, cy], transform)
 
     d = ''
@@ -184,7 +183,7 @@ def polyline2pathd(element, is_polygon=False, group_transform=(1, 0, 0, 1, 0, 0)
     Path object d-attribute"""
     polyline_d = element["points"]
     transform = get_transform(element)
-    transform = combine_transforms(group_transform, transform)
+    transform = combine_transforms(transform, group_transform)
 
     points = COORD_PAIR_TMPLT.findall(polyline_d)
     closed = (float(points[0][0]) == float(points[-1][0]) and
@@ -223,7 +222,7 @@ def rect2pathd(rect, group_transform=(1, 0, 0, 1, 0, 0)):
     x3, y3 = x0, y0 + h
 
     transform = get_transform(rect)
-    transform = combine_transforms(group_transform, transform)
+    transform = combine_transforms(transform, group_transform)
 
     x0, y0 = transform_point([x0, y0], transform)
     x1, y1 = transform_point([x1, y1], transform)
@@ -277,7 +276,7 @@ def text2pathd(text, group_transform=(1, 0, 0, 1, 0, 0)):
     outlines = []
     current_x = 0
     transform = get_transform(text)
-    transform = combine_transforms(group_transform, transform)
+    transform = combine_transforms(transform, group_transform)
     x_global_offset, y_global_offset = transform_point([x_global_offset, y_global_offset],
                                                        transform)
     for i, letter in enumerate(text_string):
@@ -449,7 +448,7 @@ def svgdoc2paths(doc,
     output = [[], [], []]
     for group in groups:
         gt = get_transform(dom2dict(group))
-        group_transform = combine_transforms(gt, transform)
+        group_transform = combine_transforms(transform, gt)
         group_output = svgdoc2paths(group, return_svg_attributes=return_svg_attributes,
                                     convert_circles_to_paths=convert_circles_to_paths,
                                     convert_ellipses_to_paths=convert_ellipses_to_paths,
@@ -471,7 +470,7 @@ def svgdoc2paths(doc,
             domdict = dom2dict(el)
             path_transform = get_transform(domdict)
 
-            d_strings += [transform_path(combine_transforms(transform, path_transform),
+            d_strings += [transform_path(combine_transforms(path_transform, transform),
                                          domdict['d'])]
             attribute_dictionary_list += [domdict]
         # Use minidom to extract polyline strings from input SVG, convert to

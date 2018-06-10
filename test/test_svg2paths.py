@@ -57,6 +57,27 @@ class TestSVG2Paths(unittest.TestCase):
         self.assertTrue(path_circle==path_circle_correct)
         self.assertTrue(path_circle.isclosed())
 
+    def test_svg2paths_transform_point_transform(self):
+        [a, b, c, d, e, f] = [randint(-1000, 1000) for _ in range(6)]
+        x = randint(-1000, 1000)
+        y = randint(-1000, 1000)
+        output = transform_point("%s,%s" % (x, y), (a, b, c, d, e, f))
+        assert output[0] == a*x + c*y + e
+        assert output[1] == b*x + d*y + f
+
+    def test_svg2paths_transform_point_combine_transform(self):
+        transform1 = [randint(-1000, 1000) for _ in range(6)]
+        transform2 = [randint(-1000, 1000) for _ in range(6)]
+        x = randint(-1000, 1000)
+        y = randint(-1000, 1000)
+        output = transform_point("%s,%s" % (x, y), transform1)
+        output1 = transform_point("%s,%s" % output, transform2)
+        transform = combine_transforms(transform2, transform1)
+
+        output2 = transform_point("%s,%s" % (x, y), transform)
+        assert output1[0] == output2[0]
+        assert output1[1] == output2[1]
+
     def test_svg2paths_transform_path_translate(self):
         width = 100
         path = Path(Line(0 + 0j, 0 + width*1j),
