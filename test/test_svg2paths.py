@@ -108,3 +108,22 @@ class TestSVG2Paths(unittest.TestCase):
         d_strings = transform_path((1, 0, 0, 1, x, y), path)
         assert d_strings == "m {:.1f},{:.1f} l {},{} l {},{} l {},{}"\
             .format(x, y, 0., width, width, 0., -width, -width)
+
+    def test_svg2paths_transform_path_translate_relative_no_lines(self):
+        width = 100.
+        path = "m 0,0 {},{} {},{} {},{}".format(0, width, width, 0, -width, -width)
+        x = randint(-1000, 1000)
+        y = randint(-1000, 1000)
+        d_strings = transform_path((1, 0, 0, 1, x, y), path)
+        assert d_strings == "m {:.1f},{:.1f} {},{} {},{} {},{}"\
+            .format(x, y, 0., width, width, 0., -width, -width)
+
+    def test_svg2paths_transform_path_translate_relative_arc(self):
+        x = randint(-1000, 1000)
+        y = randint(-1000, 1000)
+        width = 25.0
+        path = "m 0.0,0.0 a {},{} 0 0 1 -{},{} {},{} 0 0 1 -{},-{} {},{} 0 0 1 {},-{} " \
+               "{},{} 0 0 1 {},{} z".format(*[width]*16)
+        d_strings = transform_path((1, 0, 0, 1, x, y), path)
+        assert d_strings == "m {:.1f},{:.1f} a {},{} 0 0 1 -{},{} {},{} 0 0 1 -{},-{} {},{} 0 0 1 {},-{} " \
+               "{},{} 0 0 1 {},{} z".format(x, y, *[width]*16)
