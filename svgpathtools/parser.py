@@ -40,7 +40,6 @@ def parse_path(pathdef, current_pos=0j):
     command = None
 
     while elements:
-
         if elements[-1] in COMMANDS:
             # New command.
             last_command = command  # Used by S and T

@@ -8,9 +8,9 @@ from re import findall
 from xml.dom.minidom import parse
 from os import path as os_path, getcwd
 import re
-from svgpathtools import wsvg, Line, QuadraticBezier, Path
 
 from numpy import matmul, cos, sin, tan
+from svgpathtools import wsvg, Line, QuadraticBezier, Path, CubicBezier
 
 try:
     from freetype import Face
@@ -77,8 +77,7 @@ def get_transform(input_dict):
     else:
         return 1, 0, 0, 1, 0, 0
 
-
-def transform_path(transform, path):
+def transform_path_string(transform, path):
     path_parts = findall(r"([\w][\s\d\.\,\-]+|[zZ])", path)
     for i, part in enumerate(path_parts):
         numbers = findall(r"[\-\d\.]+", part)
@@ -87,20 +86,22 @@ def transform_path(transform, path):
             # A rx ry x-axis-rotation large-arc-flag sweep-flag x y
             # there can be multiple arcs in a path
             path_parts[i] = ""
-            for offset in range(0, int(len(numbers)/7)):
+            for offset in range(0, int(len(numbers) / 7)):
                 if offset == 0:
                     path_parts[i] += part[0]
 
-                path_parts[i] += " " + transform_point("%s,%s" % (numbers[0+offset*7], numbers[1+offset*7]),
-                                                transform, format='str',
-                                                relative=True) + " " + \
-                                " ".join(numbers[2+offset*7:5+offset*7]) + " " + \
-                                transform_point("%s,%s" % (numbers[5+offset*7], numbers[6+offset*7]),
-                                                transform, format='str',
-                                                relative=part[0] == 'a')
+                path_parts[i] += " " + transform_point(
+                    "%s,%s" % (numbers[0 + offset * 7], numbers[1 + offset * 7]),
+                    transform, format='str',
+                    relative=True) + " " + \
+                                 " ".join(numbers[2 + offset * 7:5 + offset * 7]) + " " + \
+                                 transform_point("%s,%s" % (
+                                 numbers[5 + offset * 7], numbers[6 + offset * 7]),
+                                                 transform, format='str',
+                                                 relative=part[0] == 'a')
         else:
             paired = ["%s,%s" % (numbers[j], numbers[j + 1]) for j in
-                      range(0, len(numbers)-1, 2)]
+                      range(0, len(numbers) - 1, 2)]
             # the relative move has to be handled differently
             if part[0] == "m":
                 path_parts[i] = part[0] + " " + \
@@ -112,20 +113,51 @@ def transform_path(transform, path):
             else:
                 relative = part[0].islower()
                 path_parts[i] = part[0] + " " + \
-                            " ".join([transform_point(p, transform, format='str',
-                                                      relative=relative)
-                                      for p in paired])
+                                " ".join([transform_point(p, transform, format='str',
+                                                          relative=relative)
+                                          for p in paired])
     # go through list, transform the points, and then rejoin the string
     return " ".join(path_parts)
 
 
+def transform_path(transform, path):
+    if isinstance(path, basestring):
+        return transform_path_string(transform, path)
+    # if not a string, it's probably a Path object
+    segments = path._segments
+    for segment in segments:
+        if isinstance(segment, CubicBezier):
+            segment.start = transform_point(segment.start, matrix=transform,
+                                            format="complex")
+            segment.end =   transform_point(segment.end, matrix=transform,
+                                            format="complex")
+            segment.control1 = transform_point(segment.control1, matrix=transform,
+                                          format="complex")
+            segment.control2 = transform_point(segment.control2, matrix=transform,
+                                          format="complex")
+        elif isinstance(segment, Line):
+            segment.start = transform_point(segment.start, matrix=transform,
+                                            format="complex")
+
+            segment.end = transform_point(segment.end, matrix=transform,
+                                          format="complex")
+        else:
+            raise ValueError("not sure how to handle {}".format(type(segment)))
+    return Path(*segments)
+
 def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=False):
     a, b, c, d, e, f = matrix
-    if isinstance(point, list):
+    if isinstance(point, complex):
+        x, y = point.real, point.imag
+    elif isinstance(point, int):
+        x, y = point, 0
+    elif isinstance(point, list):
         x, y = point
     else:
         point_parts = point.split(',')
         if len(point_parts) >= 2:
+            # certain svg editors (like illustrator) express points as mathematical
+            # operations
             x, y = [float(x) for x in point_parts]
         else:
             # probably got a letter describing the point, i.e., m or z
@@ -137,6 +169,8 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=F
         x, y = a * x + c * y + e, b * x + d * y + f
     if format == "float":
         return x, y
+    elif format == "complex":
+        return x + y*1j
     else:
         return "%s,%s" % (x, y)
 
@@ -469,9 +503,9 @@ def svgdoc2paths(doc,
         if el.nodeName == 'path':
             domdict = dom2dict(el)
             path_transform = get_transform(domdict)
-
+            path = parse_path(domdict['d'])
             d_strings += [transform_path(combine_transforms(path_transform, transform),
-                                         domdict['d'])]
+                                         path)]
             attribute_dictionary_list += [domdict]
         # Use minidom to extract polyline strings from input SVG, convert to
         # path strings, add to list
@@ -516,7 +550,7 @@ def svgdoc2paths(doc,
         return path_list + output[0], attribute_dictionary_list + output[
             1], svg_attributes + output[2]
     else:
-        path_list = [parse_path(d) for d in d_strings]
+        path_list = [parse_path(d) if isinstance(d, basestring) else d for d in d_strings]
         return path_list + output[0], attribute_dictionary_list + output[1]
 
 
