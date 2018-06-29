@@ -6,7 +6,9 @@ from __future__ import division, absolute_import, print_function
 
 from re import findall
 from xml.dom.minidom import parse
+import tinycss
 from os import path as os_path, getcwd
+
 
 from numpy import matmul, cos, sin, tan
 from svgpathtools import wsvg, Line, QuadraticBezier, Path, CubicBezier
@@ -69,6 +71,7 @@ def get_transform(input_dict):
             return 1, 0, 0, 1, 0, 0
     else:
         return 1, 0, 0, 1, 0, 0
+
 
 def transform_path_string(transform, path):
     path_parts = findall(r"([\w][\s\d\.\,\-]+|[zZ])", path)
@@ -138,6 +141,7 @@ def transform_path(transform, path):
             raise ValueError("not sure how to handle {}".format(type(segment)))
     return Path(*segments)
 
+
 def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=False):
     a, b, c, d, e, f = matrix
     if isinstance(point, complex):
@@ -168,6 +172,18 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=F
         return "%s,%s" % (x, y)
 
 
+def parse_style(element):
+    parser = tinycss.make_parser('page3')
+    stylesheet = parser.parse_stylesheet_bytes(element.childNodes[0].nodeValue)
+    rules = {}
+    for rule in stylesheet.rules:
+        _decs = {}
+        for dec in rule.declarations:
+            _decs[dec.name] = dec.value[0].value
+        rules["{}{}".format(*[d.value for d in rule.selector[0:2]])] = _decs
+    return rules
+
+
 def dom2dict(element):
     """Converts DOM elements to dictionaries of attributes."""
     if element.attributes is None:  # sometimes groups don't have any attributes
@@ -175,6 +191,21 @@ def dom2dict(element):
     keys = list(element.attributes.keys())
     values = [val.value for val in list(element.attributes.values())]
     return dict(list(zip(keys, values)))
+
+
+def combine_styles(domdict, style):
+    # if there is already a style tag, ignore stylesheet
+    if "style" in domdict:
+        return domdict
+
+    if "class" in domdict and ".{}".format(domdict["class"]) in style:
+        domdict["style"] = ";".join([":".join([k,v]) for k,v in style[".{}".format(domdict["class"])].items()])
+
+    if "id" in domdict and ".{}".format(domdict["id"]) in style:
+        domdict["style"] = ";".join(
+            [":".join([k, v]) for k, v in style[".{}".format(domdict["id"])].items()])
+
+    return domdict
 
 
 def ellipse2pathd(ellipse, group_transform=(1, 0, 0, 1, 0, 0)):
@@ -452,7 +483,9 @@ def svgdoc2paths(doc,
                  convert_polylines_to_paths=True,
                  convert_polygons_to_paths=True,
                  convert_rectangles_to_paths=True,
-                 convert_text_to_paths=True, transform=(1, 0, 0, 1, 0, 0)):
+                 convert_text_to_paths=True,
+                 transform=(1, 0, 0, 1, 0, 0),
+                 style={}):
     """Converts an SVG into a list of Path objects and attribute dictionaries.
 
     Converts an SVG file into a list of Path objects and a list of
@@ -484,6 +517,12 @@ def svgdoc2paths(doc,
         list: The list of corresponding path attribute dictionaries.
         dict (optional): A dictionary of svg-attributes (see `svg2paths2()`).
     """
+    # check for style tags
+    if not style:
+        style_tags = [node for node in doc.childNodes if node.nodeName == 'style']
+
+        if len(style_tags) > 0:
+            style = parse_style(style_tags[0])
     # first check for group transforms
     groups = [node for node in doc.childNodes if
               node.nodeName == 'g' or node.nodeName == 'svg']
@@ -498,7 +537,7 @@ def svgdoc2paths(doc,
                                     convert_polylines_to_paths=convert_polylines_to_paths,
                                     convert_polygons_to_paths=convert_polygons_to_paths,
                                     convert_rectangles_to_paths=convert_rectangles_to_paths,
-                                    transform=group_transform)
+                                    transform=group_transform, style=style)
 
         for i in range(len(group_output)):
             output[i] = output[i] + group_output[i]
@@ -510,6 +549,7 @@ def svgdoc2paths(doc,
         # Use minidom to extract path strings from input SVG
         if el.nodeName == 'path':
             domdict = dom2dict(el)
+            domdict = combine_styles(domdict, style)
             path_transform = get_transform(domdict)
             path = parse_path(domdict['d'])
             d_strings += [transform_path(combine_transforms(path_transform, transform),
