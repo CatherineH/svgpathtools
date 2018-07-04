@@ -124,7 +124,7 @@ def transform_path_string(transform, path):
 
 
 def transform_path(transform, path):
-    if isinstance(path, basestring):
+    if isinstance(path, str):
         return transform_path_string(transform, path)
     # if not a string, it's probably a Path object
     segments = path._segments
@@ -181,7 +181,10 @@ def transform_point(point, matrix=(1, 0, 0, 1, 0, 0), format="float", relative=F
 
 def parse_style(element):
     parser = tinycss.make_parser('page3')
-    stylesheet = parser.parse_stylesheet_bytes(element.childNodes[0].nodeValue)
+    contents = element.childNodes[0].nodeValue
+    if isinstance(contents, str):
+        contents = contents.encode('utf-8')
+    stylesheet = parser.parse_stylesheet_bytes(contents)
     rules = {}
     for rule in stylesheet.rules:
         _decs = {}
@@ -590,7 +593,7 @@ def svgdoc2paths(doc,
         return path_list + output[0], attribute_dictionary_list + output[
             1], svg_attributes + output[2]
     else:
-        path_list = [parse_path(d) if isinstance(d, basestring) else d for d in d_strings]
+        path_list = [parse_path(d) if isinstance(d, str) else d for d in d_strings]
         return path_list + output[0], attribute_dictionary_list + output[1]
 
 
