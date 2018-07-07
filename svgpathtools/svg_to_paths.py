@@ -194,6 +194,28 @@ def parse_style(element):
     return rules
 
 
+def parse_gradients(elements):
+    gradients = {}
+    for element in elements:
+        key = element.attributes["id"].value
+        if "xlink:href" in element.attributes.keys():
+            link = element.attributes["xlink:href"].value[1:]
+            if link in gradients:
+                gradients[key] = gradients[link]
+                continue
+            else:
+                raise ValueError("could not find {} in {}".format(link, gradients.keys()))
+        stops = [{style_key: style_value
+                  for (style_key, style_value) in
+                  [style_element.split(":")
+                   for style_element in node.attributes["style"].value.split(";")] }
+                  for node in element.childNodes if node.nodeName == "stop"]
+        if len(stops) == 0:
+            continue
+        gradients[key] = stops[0]["stop-color"]
+    return gradients
+
+
 def dom2dict(element):
     """Converts DOM elements to dictionaries of attributes."""
     if element.attributes is None:  # sometimes groups don't have any attributes
@@ -203,9 +225,19 @@ def dom2dict(element):
     return dict(list(zip(keys, values)))
 
 
-def combine_styles(domdict, style):
+def combine_styles(domdict, style, gradients):
+    def check_for_url(value):
+        if value.find("url(") != 0:
+            return value
+        value = value.replace("url(", "").replace(")", "").replace("#", "")
+        if value in gradients:
+            return gradients[value]
+        raise ValueError("can't find reference {} in {}".format(value, gradients.keys()))
     # if there is already a style tag, ignore stylesheet
     if "style" in domdict:
+        style_dict = {key: check_for_url(value) for key, value in
+                      [style.split(":") for style in domdict["style"].split(";")]}
+        domdict["style"] = ";".join(["{}:{}".format(key, value) for key, value in style_dict.items()])
         return domdict
 
     if "class" in domdict and ".{}".format(domdict["class"]) in style:
@@ -480,7 +512,7 @@ def svgdoc2paths(doc,
                  convert_rectangles_to_paths=True,
                  convert_text_to_paths=True,
                  transform=(1, 0, 0, 1, 0, 0),
-                 style={}):
+                 style={}, gradients={}):
     """Converts an SVG into a list of Path objects and attribute dictionaries.
 
     Converts an SVG file into a list of Path objects and a list of
@@ -515,9 +547,18 @@ def svgdoc2paths(doc,
     # check for style tags
     if not style:
         style_tags = [node for node in doc.childNodes if node.nodeName == 'style']
-
         if len(style_tags) > 0:
             style = parse_style(style_tags[0])
+    # check for linear gradient tags
+    if not gradients:
+        defs_node = [node for node in doc.childNodes if node.nodeName == 'defs']
+        if len(defs_node) > 0:
+            gradient_tags = []
+            for def_node in defs_node:
+                gradient_tags += [node for node in def_node.childNodes
+                                  if node.nodeName in ['linearGradient', 'radialGradient']]
+            if len(gradient_tags) > 0:
+                gradients = parse_gradients(gradient_tags)
     # first check for group transforms
     groups = [node for node in doc.childNodes if
               node.nodeName == 'g' or node.nodeName == 'svg']
@@ -532,7 +573,8 @@ def svgdoc2paths(doc,
                                     convert_polylines_to_paths=convert_polylines_to_paths,
                                     convert_polygons_to_paths=convert_polygons_to_paths,
                                     convert_rectangles_to_paths=convert_rectangles_to_paths,
-                                    transform=group_transform, style=style)
+                                    transform=group_transform, style=style,
+                                    gradients=gradients)
 
         for i in range(len(group_output)):
             output[i] = output[i] + group_output[i]
@@ -544,7 +586,7 @@ def svgdoc2paths(doc,
         # Use minidom to extract path strings from input SVG
         if el.nodeName == 'path':
             domdict = dom2dict(el)
-            domdict = combine_styles(domdict, style)
+            domdict = combine_styles(domdict, style, gradients)
             path_transform = get_transform(domdict)
             path = parse_path(domdict['d'])
             d_strings += [transform_path(combine_transforms(path_transform, transform),
